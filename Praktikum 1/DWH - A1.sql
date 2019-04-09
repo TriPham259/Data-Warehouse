@@ -166,25 +166,53 @@ left join dim_kunde using(kundennummer);
 
 ------------------------------------------------------ Queries ---------------------------------------------------------------
 -- Umsatz pro Filiale und Monat (group by)
-select sum(preis)
-from temp_bestellung 
-join dim_verkaeufer using(verkaeufer_vorname, filiale_name)
-join dim_datum using(datum)
-group by filiale_name, datum_monat;
+select filiale_name, datum_monat, sum(anzahl * preis) as umsatz from fact_bestellung
+right join dim_verkaeufer using(dim_verkaeufer_key)
+right join dim_datum using(dim_datum_key)
+group by (filiale_name, datum_monat)
+order by filiale_name, datum_monat;
 
 -- Umsatz pro Filiale und Monat (group by cube)
-
+select nvl(filiale_name,' '), datum_monat, sum(anzahl * preis) as umsatz from fact_bestellung
+right join dim_verkaeufer using(dim_verkaeufer_key)
+right join dim_datum using(dim_datum_key)
+group by cube(filiale_name, datum_monat)
+order by filiale_name, datum_monat;
 
 -- Welche Filiale hat vom 1.9-3.9.2012 die höchste Anzahl von Handcremes verkauft?
-
+select filiale_name, sum(anzahl) as anzahl from fact_bestellung
+right join dim_verkaeufer using(dim_verkaeufer_key)
+right join dim_datum using(dim_datum_key)
+right join dim_artikel using(dim_artikel_key)
+where artname = 'Handcreme'
+and datum between to_date('01.09.2012', 'DD.MM.YYYY') and to_date('03.09.2012', 'DD.MM.YYYY')
+group by(filiale_name)
+order by filiale_name
+fetch first row only;   -- A instead of A and B
 
 -- Umsatz pro Artikelgruppe
-
+select artgrp, sum(anzahl * preis) as umsatz from fact_bestellung
+right join dim_artgrp using(dim_artgrp_key)
+group by(artgrp)
+order by umsatz;
 
 -- Prozentualler Absatz der Artikelgruppe Körperpflege in den einzelnen Filialen
-
+select filiale_name, artgrp, 
+round(sum(anzahl)/ cast(sum(sum(anzahl)) over (partition by filiale_name) as float), 3) as prozentualer_absatz from fact_bestellung
+right join dim_verkaeufer using(dim_verkaeufer_key) 
+right join dim_artgrp using(dim_artgrp_key)
+group by(filiale_name, artgrp)
+order by filiale_name, artgrp;
 
 -- Umsatz pro Kunden
-
+select kundennummer, sum(anzahl * preis) as umsatz from fact_bestellung
+full outer join dim_kunde using(dim_kunde_key)
+group by(kundennummer)
+order by kundennummer;
 
 -- Buchungen pro Verkäufer und Tag
+select kundennummer, datum, sum(anzahl * preis) as beitrag from fact_bestellung
+left join dim_kunde using(dim_kunde_key)
+right join dim_datum using(dim_datum_key)
+group by (kundennummer, datum)
+order by kundennummer, datum;
